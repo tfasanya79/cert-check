@@ -1,0 +1,16 @@
+{
+  "name": "cert-check",
+  "version": "1.0.0",
+  "description": "SSL/TLS certificate checker: expiry, chain of trust, protocol version, key strength, and hostname coverage for any domain.",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "express-rate-limit": "^7.4.0"
+  }
+}

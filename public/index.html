@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>cert-check. : SSL/TLS Certificate Checker</title>
+<meta name="description" content="Check any domain's SSL/TLS certificate: expiry countdown, chain of trust, protocol version, key strength, and hostname coverage, explained in plain English.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0B1220;
+    --panel: #131B2C;
+    --panel-2: #0F1729;
+    --border: #26334A;
+    --text: #E7EDF5;
+    --text-muted: #7C8CA6;
+    --good: #5EEAD4;
+    --good-dim: #1F4A45;
+    --warn: #F5A97F;
+    --warn-dim: #4A3423;
+    --bad: #F87171;
+    --bad-dim: #4A1F1F;
+    --radius: 6px;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Sans', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .mono { font-family: 'IBM Plex Mono', monospace; }
+
+  header {
+    padding: 28px clamp(20px, 4vw, 48px) 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  header .wordmark {
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  header .wordmark span { color: var(--text-muted); font-weight: 400; }
+
+  header .tagline {
+    color: var(--text-muted);
+    font-size: 14px;
+    max-width: 46ch;
+  }
+
+  main {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: clamp(20px, 4vw, 48px);
+  }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 22px;
+    margin-bottom: 20px;
+  }
+
+  .search-row {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  input[type="text"] {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 16px;
+    padding: 10px 12px;
+    border-radius: var(--radius);
+    outline: none;
+  }
+  #domainInput { flex: 1; min-width: 220px; }
+  #portInput { width: 90px; }
+  input:focus { border-color: var(--good); }
+
+  .scan-btn {
+    background: var(--good-dim);
+    border: 1px solid var(--good);
+    color: var(--good);
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    padding: 10px 20px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .scan-btn:hover:not(:disabled) { background: var(--good); color: #06201C; }
+  .scan-btn:disabled { opacity: 0.5; cursor: default; }
+
+  .hint {
+    color: var(--text-muted);
+    font-size: 12.5px;
+    margin-top: 10px;
+  }
+
+  .error-msg {
+    color: var(--bad);
+    font-size: 13px;
+    margin-top: 10px;
+  }
+
+  #results { display: none; }
+
+  .grade-row {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+  .grade-badge {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 32px;
+    font-weight: 600;
+    width: 64px;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .grade-badge.a { color: var(--good); border-color: var(--good); background: var(--good-dim); }
+  .grade-badge.b { color: var(--good); border-color: var(--good); background: var(--good-dim); }
+  .grade-badge.c { color: var(--warn); border-color: var(--warn); background: var(--warn-dim); }
+  .grade-badge.d { color: var(--warn); border-color: var(--warn); background: var(--warn-dim); }
+  .grade-badge.f { color: var(--bad); border-color: var(--bad); background: var(--bad-dim); }
+  .grade-meta { font-size: 13.5px; color: var(--text-muted); }
+  .grade-meta strong { color: var(--text); }
+
+  h3 {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin: 0 0 14px;
+  }
+
+  .row-list { display: flex; flex-direction: column; gap: 10px; }
+  .status-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 13.5px;
+    padding: 10px 12px;
+    border-radius: var(--radius);
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+  }
+  .status-row .dot {
+    width: 9px; height: 9px;
+    border-radius: 2px;
+    margin-top: 4px;
+    flex-shrink: 0;
+  }
+  .status-row.ok .dot { background: var(--good); }
+  .status-row.critical .dot { background: var(--bad); }
+  .status-row.warning .dot { background: var(--warn); }
+  .status-row .label { font-weight: 500; color: var(--text); }
+  .status-row .detail { color: var(--text-muted); margin-top: 2px; }
+
+  .detail-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px;
+  }
+  .detail-cell {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 12px;
+  }
+  .detail-cell .k { font-size: 11.5px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; }
+  .detail-cell .v { font-family: 'IBM Plex Mono', monospace; font-size: 13px; margin-top: 4px; word-break: break-word; }
+
+  .san-list { font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; color: var(--text-muted); word-break: break-all; }
+
+  .chain-item {
+    padding: 10px 12px;
+    border-radius: var(--radius);
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    font-size: 13px;
+    margin-bottom: 8px;
+  }
+  .chain-item .arrow { color: var(--text-muted); font-size: 11px; margin: 4px 0; }
+
+  .loading { color: var(--text-muted); font-size: 13.5px; }
+
+  footer {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 12px;
+    padding: 32px 20px 40px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wordmark">cert-check<span>.</span></div>
+  <div class="tagline">SSL/TLS certificate checker. Expiry countdown, chain of trust, protocol version, key strength, and hostname coverage, explained in plain English.</div>
+</header>
+
+<main>
+  <div class="panel">
+    <div class="search-row">
+      <input type="text" id="domainInput" class="mono" placeholder="example.com" spellcheck="false" autocomplete="off">
+      <input type="text" id="portInput" class="mono" placeholder="443" spellcheck="false" autocomplete="off">
+      <button type="button" class="scan-btn" id="scanBtn">Check</button>
+    </div>
+    <div class="hint">Port defaults to 443. Change it to check a certificate served on a different port.</div>
+    <div class="error-msg" id="errorMsg"></div>
+  </div>
+
+  <div id="results">
+    <div class="panel">
+      <div class="grade-row">
+        <div class="grade-badge" id="gradeBadge">-</div>
+        <div class="grade-meta" id="gradeMeta"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>Findings</h3>
+      <div class="row-list" id="findingRows"></div>
+    </div>
+
+    <div class="panel">
+      <h3>Certificate details</h3>
+      <div class="detail-grid" id="detailGrid"></div>
+    </div>
+
+    <div class="panel">
+      <h3>Names this certificate covers</h3>
+      <div class="san-list" id="sanList"></div>
+    </div>
+
+    <div class="panel">
+      <h3>Certificate chain</h3>
+      <div id="chainList"></div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  Built by Tim, a small tool for a specific job. Checks are read only and connect only to the domain and port you provide.
+</footer>
+
+<script>
+(function () {
+  const domainInput = document.getElementById('domainInput');
+  const portInput = document.getElementById('portInput');
+  const scanBtn = document.getElementById('scanBtn');
+  const errorMsg = document.getElementById('errorMsg');
+  const results = document.getElementById('results');
+  const gradeBadge = document.getElementById('gradeBadge');
+  const gradeMeta = document.getElementById('gradeMeta');
+  const findingRows = document.getElementById('findingRows');
+  const detailGrid = document.getElementById('detailGrid');
+  const sanList = document.getElementById('sanList');
+  const chainList = document.getElementById('chainList');
+
+  function statusRow(status, label, detail) {
+    const div = document.createElement('div');
+    div.className = 'status-row ' + status;
+    div.innerHTML =
+      '<span class="dot"></span>' +
+      '<div>' +
+      '<div class="label">' + label + '</div>' +
+      (detail ? '<div class="detail">' + detail + '</div>' : '') +
+      '</div>';
+    return div;
+  }
+
+  function detailCell(k, v) {
+    const div = document.createElement('div');
+    div.className = 'detail-cell';
+    div.innerHTML = '<div class="k">' + k + '</div><div class="v">' + v + '</div>';
+    return div;
+  }
+
+  function renderFindings(data) {
+    findingRows.innerHTML = '';
+    data.grade.details.forEach((d) => {
+      findingRows.appendChild(statusRow(d.status, d.label, d.meaning));
+    });
+  }
+
+  function renderDetails(data) {
+    detailGrid.innerHTML = '';
+    const subjectName = (data.subject && data.subject.CN) || 'Unknown';
+    const issuerName = (data.issuer && data.issuer.O) || (data.issuer && data.issuer.CN) || 'Unknown';
+    detailGrid.appendChild(detailCell('Issued to', subjectName));
+    detailGrid.appendChild(detailCell('Issued by', issuerName));
+    detailGrid.appendChild(detailCell('Valid from', data.validFrom));
+    detailGrid.appendChild(detailCell('Valid to', data.validTo));
+    detailGrid.appendChild(detailCell('Protocol', data.protocol || 'Unknown'));
+    detailGrid.appendChild(detailCell('Cipher suite', (data.cipher && data.cipher.name) || 'Unknown'));
+    detailGrid.appendChild(detailCell('Public key', data.key.type + (data.key.size ? ' (' + data.key.size + ' bit)' : '')));
+    detailGrid.appendChild(detailCell('Serial number', data.serialNumber || 'Unknown'));
+    detailGrid.appendChild(detailCell('SHA-256 fingerprint', data.fingerprint256 || 'Unknown'));
+  }
+
+  function renderSan(data) {
+    sanList.textContent = data.sanList && data.sanList.length > 0 ? data.sanList.join(', ') : 'No names listed.';
+  }
+
+  function renderChain(data) {
+    chainList.innerHTML = '';
+    if (!data.chain || data.chain.length === 0) {
+      chainList.appendChild(statusRow('warning', 'No chain information available', null));
+      return;
+    }
+    data.chain.forEach((c, i) => {
+      const div = document.createElement('div');
+      div.className = 'chain-item mono';
+      div.textContent = (i === 0 ? 'Leaf: ' : 'Issuer: ') + c.subject;
+      chainList.appendChild(div);
+      if (i < data.chain.length - 1) {
+        const arrow = document.createElement('div');
+        arrow.className = 'arrow';
+        arrow.textContent = 'issued by';
+        chainList.appendChild(arrow);
+      }
+    });
+  }
+
+  function renderGrade(data) {
+    gradeBadge.textContent = data.grade.letter;
+    gradeBadge.className = 'grade-badge ' + data.grade.letter.toLowerCase();
+    gradeMeta.innerHTML =
+      '<strong>' + data.domain + ':' + data.port + '</strong> scores ' + data.grade.pct + '%.<br>' +
+      data.grade.summary;
+  }
+
+  async function scan() {
+    const domain = domainInput.value.trim();
+    const port = portInput.value.trim() || '443';
+    errorMsg.textContent = '';
+    results.style.display = 'none';
+
+    if (!domain) {
+      errorMsg.textContent = 'Enter a domain name, for example example.com';
+      return;
+    }
+
+    scanBtn.disabled = true;
+    scanBtn.textContent = 'Checking...';
+
+    try {
+      const res = await fetch('api/check?domain=' + encodeURIComponent(domain) + '&port=' + encodeURIComponent(port));
+      const data = await res.json();
+
+      if (!res.ok) {
+        errorMsg.textContent = data.error || 'Something went wrong.';
+        return;
+      }
+
+      renderGrade(data);
+      renderFindings(data);
+      renderDetails(data);
+      renderSan(data);
+      renderChain(data);
+      results.style.display = 'block';
+    } catch (err) {
+      errorMsg.textContent = 'Could not reach the cert-check service. Try again in a moment.';
+    } finally {
+      scanBtn.disabled = false;
+      scanBtn.textContent = 'Check';
+    }
+  }
+
+  scanBtn.addEventListener('click', scan);
+  domainInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') scan();
+  });
+  portInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') scan();
+  });
+})();
+</script>
+
+</body>
+</html>
