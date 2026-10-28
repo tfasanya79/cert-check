@@ -2,7 +2,7 @@
 
 An SSL/TLS certificate checker. Enter a domain, and see its certificate expiry countdown, chain of trust, negotiated protocol version, public key strength, and which hostnames it actually covers, all explained in plain English.
 
-Live at: https://aipal-staging.cloud/cert-check/
+Live at: https://timfas.com/cert-check/
 
 ## What it does
 
@@ -38,4 +38,4 @@ Then open the page served at the configured port.
 
 ## Part of a portfolio
 
-This is one of several small, single purpose web tools built for a public portfolio. See the full list at https://aipal-staging.cloud/portfolio/
+This is one of several small, single purpose web tools built for a public portfolio. See the full list at https://timfas.com/
